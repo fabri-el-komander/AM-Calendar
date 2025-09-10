@@ -1,0 +1,4 @@
+activity_id,trip_id,trip_name,supplier_id,supplier_name,title,category,start_datetime,end_datetime,location,status,pax,guide_language,notes
+A1,T001,Family Hougaard,S001,Sibaria Tours,Airport Transfer,transfer,2025-09-11 14:00,2025-09-11 15:00,GDL confirmado,confirmado,4,EN,Pick-up AM 276
+A2,T001,Family Hougaard,S010,Quintonil,Chef Tasting Dinner,meal,2025-09-11 20:00,2025-09-11 22:00,CDMX,confirmado,4,EN,Vegetarian x1
+A3,T002,Arturo Sánchez,S020,Mondrian Condesa,Hotel Check-in,checkin,2025-09-11 16:00,2025-09-11 16:30,CDMX,tentativo,2,EN,Crédito corporativo
