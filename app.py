@@ -11,11 +11,9 @@ from sqlalchemy import create_engine, text
 st.set_page_config(page_title="Across Mexico | Calendario", layout="wide")
 
 # --- Persistencia (SQLite simple) ---
-# check_same_thread=False para evitar bloqueos en entornos multihilo (Streamlit Cloud)
 engine = create_engine("sqlite:///data.db", connect_args={"check_same_thread": False})
 
 def ensure_table():
-    """Crea la tabla activities si no existe (DDL con exec_driver_sql para SQLAlchemy 2.x)."""
     with engine.begin() as conn:
         conn.exec_driver_sql("""
         CREATE TABLE IF NOT EXISTS activities (
@@ -37,7 +35,6 @@ def ensure_table():
         """)
 
 def load_df() -> pd.DataFrame:
-    """Carga todas las actividades desde SQLite."""
     try:
         df = pd.read_sql("SELECT * FROM activities", engine)
         return df
@@ -48,19 +45,16 @@ def load_df() -> pd.DataFrame:
         ])
 
 def upsert_row(row: dict):
-    """Borra por activity_id si existe y luego inserta la fila."""
     df = pd.DataFrame([row])
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM activities WHERE activity_id = :id"), {"id": row["activity_id"]})
         df.to_sql("activities", conn, if_exists="append", index=False)
 
 def delete_activity(activity_id: str):
-    """Elimina una actividad por ID."""
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM activities WHERE activity_id = :id"), {"id": activity_id})
 
 def import_csv(path="sample_activities.csv"):
-    """Importa actividades desde un CSV (debe tener columnas compatibles)."""
     df = pd.read_csv(path)
     with engine.begin() as conn:
         df.to_sql("activities", conn, if_exists="append", index=False)
@@ -108,7 +102,6 @@ if not fdf.empty:
 # --- Vista calendario (timeline) ---
 st.subheader("Vista de cronograma (día/semana)")
 if not fdf.empty:
-    # Asegurar datetimes
     try:
         fdf["start_dt"] = pd.to_datetime(fdf["start_datetime"])
         fdf["end_dt"]   = pd.to_datetime(fdf["end_datetime"])
@@ -117,7 +110,6 @@ if not fdf.empty:
         fdf["start_dt"] = fdf["start_datetime"]
         fdf["end_dt"]   = fdf["end_datetime"]
 
-    # Elegí cómo agrupar: por supplier o por viaje
     row_label = st.radio("Agrupar filas por:", ["supplier_name", "trip_name"], horizontal=True, index=0)
     title_hover = ["title","trip_name","supplier_name","category","status","pax","guide_language","location","notes"]
 
@@ -128,7 +120,7 @@ if not fdf.empty:
         hover_data=title_hover,
         title=None
     )
-    fig.update_yaxes(autorange="reversed")  # estilo Gantt
+    fig.update_yaxes(autorange="reversed")
     fig.update_layout(height=500, margin=dict(t=20, b=20, l=20, r=20))
     st.plotly_chart(fig, use_container_width=True)
 else:
@@ -147,5 +139,93 @@ with st.expander("Agregar / editar actividad"):
         with c2:
             trip_id = st.text_input("Trip ID", placeholder="T001")
             trip_name = st.text_input("Trip name", placeholder="Family X / Arturo Sánchez")
-            supplier_id = s_
+            supplier_id = st.text_input("Supplier ID", placeholder="S001")  # <- acá estaba el error en tu copia
+        with c3:
+            supplier_name = st.text_input("Supplier name", placeholder="Sibaria Tours / Mondrian")
+            pax = st.number_input("PAX", min_value=0, value=2)
+            guide_language = st.text_input("Idioma guía", value="EN")
 
+        c4, c5 = st.columns(2)
+        with c4:
+            start_datetime = st.text_input("Inicio (YYYY-MM-DD HH:MM)", value=datetime.now().strftime("%Y-%m-%d 09:00"))
+        with c5:
+            end_datetime = st.text_input("Fin (YYYY-MM-DD HH:MM)", value=datetime.now().strftime("%Y-%m-%d 10:00"))
+
+        location = st.text_input("Lugar", placeholder="CDMX / Oaxaca / GDL")
+        notes = st.text_area("Notas", placeholder="Pedidos especiales, referencia de reserva, etc.")
+
+        submitted = st.form_submit_button("Guardar/Actualizar")  # <- el botón del form
+        if submitted:
+            if not activity_id.strip():
+                st.error("Necesitás un ID de actividad único.")
+            else:
+                row = dict(
+                    activity_id=activity_id.strip(),
+                    trip_id=trip_id.strip(),
+                    trip_name=trip_name.strip(),
+                    supplier_id=supplier_id.strip(),
+                    supplier_name=supplier_name.strip(),
+                    title=title.strip(),
+                    category=category,
+                    start_datetime=start_datetime.strip(),
+                    end_datetime=end_datetime.strip(),
+                    location=location.strip(),
+                    status=status,
+                    pax=int(pax),
+                    guide_language=guide_language.strip(),
+                    notes=notes.strip()
+                )
+                try:
+                    pd.to_datetime(row["start_datetime"])
+                    pd.to_datetime(row["end_datetime"])
+                    upsert_row(row)
+                    st.success("Actividad guardada/actualizada.")
+                except Exception as e:
+                    st.error(f"Error guardando la actividad: {e}")
+
+# Lista y borrar
+if not df.empty:
+    st.dataframe(
+        fdf[[
+            "activity_id","trip_name","supplier_name","title","category",
+            "start_datetime","end_datetime","status","pax","guide_language","location","notes"
+        ]].sort_values("start_datetime"),
+        use_container_width=True
+    )
+
+    del_id = st.text_input("ID a borrar")
+    if st.button("Borrar actividad"):
+        if del_id.strip():
+            delete_activity(del_id.strip())
+            st.warning(f"Actividad {del_id.strip()} borrada.")
+
+# --- Export .ics por viaje ---
+st.subheader("Exportar calendario (.ics)")
+exp_trip = st.selectbox(
+    "Elegí el viaje para exportar",
+    ["(Elegí)"] + (sorted(df["trip_name"].dropna().unique().tolist()) if not df.empty else [])
+)
+if st.button("Exportar .ics") and exp_trip != "(Elegí)":
+    tdf = df[df["trip_name"] == exp_trip].copy()
+    if tdf.empty:
+        st.error("Ese viaje no tiene actividades.")
+    else:
+        cal = Calendar()
+        for _, r in tdf.iterrows():
+            ev = Event()
+            ev.name = f"{r['title']} — {r['supplier_name']}"
+            ev.begin = pd.to_datetime(r["start_datetime"]).to_pydatetime()
+            ev.end = pd.to_datetime(r["end_datetime"]).to_pydatetime()
+            ev.location = r.get("location") or ""
+            ev.description = (
+                f"Trip: {r['trip_name']} | Category: {r['category']} | "
+                f"Status: {r['status']} | PAX: {r['pax']} | Notes: {r.get('notes','')}"
+            )
+            cal.events.add(ev)
+        ics_str = str(cal)
+        st.download_button(
+            label=f"Descargar {exp_trip}.ics",
+            data=ics_str,
+            file_name=f"{exp_trip.replace(' ','_')}.ics",
+            mime="text/calendar"
+        )
