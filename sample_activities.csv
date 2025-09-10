@@ -1,4 +1,20 @@
 activity_id,trip_id,trip_name,supplier_id,supplier_name,title,category,start_datetime,end_datetime,location,status,pax,guide_language,notes
-A1,T001,Family Hougaard,S001,Sibaria Tours,Airport Transfer,transfer,2025-09-11 14:00,2025-09-11 15:00,GDL confirmado,confirmado,4,EN,Pick-up AM 276
-A2,T001,Family Hougaard,S010,Quintonil,Chef Tasting Dinner,meal,2025-09-11 20:00,2025-09-11 22:00,CDMX,confirmado,4,EN,Vegetarian x1
-A3,T002,Arturo Sánchez,S020,Mondrian Condesa,Hotel Check-in,checkin,2025-09-11 16:00,2025-09-11 16:30,CDMX,tentativo,2,EN,Crédito corporativo
+A1001,T001,Arturo Sánchez,S_ETIEN,Etien,Airport pickup,transfer,2025-09-11 14:00,2025-09-11 15:00,CDMX,confirmado,2,EN,MEX->Hotel
+A1002,T001,Arturo Sánchez,S_MOND,Mondrian Condesa,Hotel check-in,checkin,2025-09-11 15:30,2025-09-11 16:00,CDMX,confirmado,2,EN,Crédito corporativo
+A1003,T001,Arturo Sánchez,S_BOTA,Botánico,Lunch at Botánico,meal,2025-09-12 14:00,2025-09-12 15:30,CDMX,confirmado,2,EN,
+A1004,T001,Arturo Sánchez,S_GABY,Gaby,Bespoke mezcal tasting,experience,2025-09-12 16:30,2025-09-12 18:00,CDMX,confirmado,2,EN,
+A1005,T001,Arturo Sánchez,S_ETIEN,Etien,Roundtrip private transport to GNP Stadium,transfer,2025-09-12 18:30,2025-09-12 23:30,CDMX,confirmado,2,EN,OASIS Concert 21:00
+A1007,T001,Arturo Sánchez,S_GABY,Gaby,Bites & Booze food tour,experience,2025-09-13 12:30,2025-09-13 15:00,CDMX,confirmado,2,EN,
+A1008,T001,Arturo Sánchez,S_TAVE,Taverna,Dinner at Taverna,meal,2025-09-13 21:00,2025-09-13 23:00,CDMX,tentativo,2,EN,
+A1009,T001,Arturo Sánchez,S_MOND,Mondrian Condesa,Hotel check-out,checkout,2025-09-14 12:00,2025-09-14 12:15,CDMX,confirmado,2,EN,
+A1010,T001,Arturo Sánchez,S_ETIEN,Etien,Transfer to airport,transfer,2025-09-14 08:45,2025-09-14 09:45,CDMX,confirmado,2,EN,
+
+M2001,T002,Matt Wallach,S_ETIEN,Etien,Airport pickup,transfer,2025-09-12 12:10,2025-09-12 13:10,CDMX,confirmado,2,EN,MEX->Hotel
+M2002,T002,Matt Wallach,S_ANDZ,Andaz Condesa,Hotel check-in,checkin,2025-09-12 13:30,2025-09-12 14:00,CDMX,confirmado,2,EN,
+M2003,T002,Matt Wallach,S_BOTA,Botánico,Lunch at Botánico,meal,2025-09-12 14:00,2025-09-12 15:30,CDMX,confirmado,2,EN,
+M2004,T002,Matt Wallach,S_GABY,Gaby,Bespoke mezcal tasting,experience,2025-09-12 16:30,2025-09-12 18:00,CDMX,confirmado,2,EN,
+M2005,T002,Matt Wallach,S_ETIEN,Etien,Roundtrip private transport to GNP Stadium,transfer,2025-09-12 18:30,2025-09-12 23:30,CDMX,confirmado,2,EN,OASIS Concert 21:00
+M2007,T002,Matt Wallach,S_GABY,Gaby,Bites & Booze food tour,experience,2025-09-13 12:30,2025-09-13 15:00,CDMX,confirmado,2,EN,
+M2008,T002,Matt Wallach,S_PUJL,Pujol,Dinner at Pujol,meal,2025-09-13 21:30,2025-09-13 23:30,CDMX,confirmado,4,EN,Booked by Mr. Wallach
+M2009,T002,Matt Wallach,S_ETIEN,Etien,Transfer to airport,transfer,2025-09-14 08:45,2025-09-14 09:45,CDMX,confirmado,2,EN,
+M2010,T002,Matt Wallach,S_ANDZ,Andaz Condesa,Hotel check-out,checkout,2025-09-14 12:00,2025-09-14 12:15,CDMX,confirmado,2,EN,
