@@ -1,12 +1,16 @@
 # app.py — Calendario Operativo Across Mexico (Streamlit + SQLite)
-# Exports: ICS, CSV, XLSX, PDF (agenda) y PNG del timeline
+# Exports: ICS, CSV, XLSX, PDF (agenda), PNG del timeline
+# + Vista mensual por supplier (Mondrian / Gaby / Etien, etc.)
 # Compatible con SQLAlchemy 2.x
 
 import io
+import calendar as cal
+from datetime import datetime
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from datetime import datetime
+import plotly.graph_objects as go
 from ics import Calendar, Event
 from sqlalchemy import create_engine, text
 from reportlab.lib.pagesizes import A4
@@ -66,7 +70,7 @@ def import_csv(path="sample_activities.csv"):
 
 # ---------- Helpers de export ----------
 def build_ics(trip_name: str, df: pd.DataFrame) -> str:
-    cal = Calendar()
+    cal_out = Calendar()
     for _, r in df.iterrows():
         ev = Event()
         ev.name = f"{r['title']} — {r['supplier_name']}"
@@ -77,8 +81,8 @@ def build_ics(trip_name: str, df: pd.DataFrame) -> str:
             f"Trip: {r['trip_name']} | Category: {r['category']} | "
             f"Status: {r['status']} | PAX: {r['pax']} | Notes: {r.get('notes','')}"
         )
-        cal.events.add(ev)
-    return str(cal)
+        cal_out.events.add(ev)
+    return str(cal_out)
 
 def build_csv(df: pd.DataFrame) -> bytes:
     return df.sort_values("start_datetime").to_csv(index=False).encode("utf-8")
@@ -97,8 +101,8 @@ def build_xlsx(df: pd.DataFrame) -> bytes:
         ws = writer.sheets["Agenda"]
         ws.set_column(0, 0, 12)
         ws.set_column(1, 2, 8)
-        ws.set_column(3, 3, 28)
-        ws.set_column(4, 6, 16)
+        ws.set_column(3, 3, 30)
+        ws.set_column(4, 6, 18)
         ws.set_column(7, 8, 10)
         ws.set_column(9, 9, 40)
     out.seek(0)
@@ -149,8 +153,59 @@ def build_png_timeline(df: pd.DataFrame) -> bytes:
     )
     fig.update_yaxes(autorange="reversed")
     fig.update_layout(height=600, width=1400, margin=dict(t=20,b=20,l=20,r=20))
-    # requiere 'kaleido' en requirements
-    return fig.to_image(format="png", scale=2)
+    return fig.to_image(format="png", scale=2)  # requiere kaleido
+
+# ---------- Vista mensual por supplier ----------
+def month_calendar_figure(df: pd.DataFrame, suppliers: list[str], year: int, month: int) -> go.Figure:
+    """Construye un calendario mensual (L-D) con eventos de suppliers seleccionados."""
+    df = df.copy()
+    df["start_dt"] = pd.to_datetime(df["start_datetime"])
+    df = df[(df["start_dt"].dt.year == year) & (df["start_dt"].dt.month == month)]
+    if suppliers:
+        df = df[df["supplier_name"].isin(suppliers)]
+
+    # Agrupar eventos por día
+    by_day = {}
+    for _, r in df.iterrows():
+        d = int(r["start_dt"].day)
+        hora = r["start_dt"].strftime("%H:%M")
+        line = f"{r['supplier_name']}: {hora} {r['title']}"
+        by_day.setdefault(d, []).append(line)
+
+    weeks = cal.monthcalendar(year, month)  # listas de 7, con 0 si no hay día
+    rows = len(weeks)
+    fig = go.Figure()
+
+    # Dibujar celdas
+    for r_idx, week in enumerate(weeks):
+        for c_idx, day in enumerate(week):
+            x0, x1 = c_idx, c_idx + 1
+            y0, y1 = rows - r_idx - 1, rows - r_idx
+            fig.add_shape(type="rect", x0=x0, y0=y0, x1=x1, y1=y1, line=dict(color="#A0A0A0"))
+            if day != 0:
+                eventos = by_day.get(day, [])
+                # Mostramos hasta 4 líneas para no saturar
+                ev_text = "<br>".join(eventos[:4])
+                text = f"<b>{day}</b>" + (f"<br>{ev_text}" if ev_text else "")
+                fig.add_annotation(
+                    x=x0 + 0.02, y=y1 - 0.1, xanchor="left", yanchor="top",
+                    text=text, showarrow=False, align="left", font=dict(size=10)
+                )
+
+    # Ejes y layout
+    fig.update_xaxes(visible=False, range=[0, 7])
+    fig.update_yaxes(visible=False, range=[0, rows])
+    month_name = cal.month_name[month]
+    sup_label = ", ".join(suppliers) if suppliers else "Todos"
+    fig.update_layout(
+        height=220 * rows, width=1100,
+        margin=dict(l=10, r=10, t=40, b=10),
+        title=f"Calendario mensual — {month_name} {year} · {sup_label}"
+    )
+    return fig
+
+def month_calendar_png(fig: go.Figure) -> bytes:
+    return fig.to_image(format="png", scale=2)  # requiere kaleido
 
 # ---- Init
 ensure_table()
@@ -165,13 +220,13 @@ with st.sidebar:
         except Exception as e:
             st.error(f"No se pudo cargar el CSV: {e}")
     st.markdown("---")
-    st.caption("Tip: Exportá el viaje a ICS/CSV/XLSX/PDF/PNG más abajo.")
+    st.caption("Exportá ICS/CSV/XLSX/PDF/PNG por viaje. Abajo: vista mensual por supplier.")
 
 st.title("📆 Calendario Operativo — Across Mexico")
 
 df = load_df()
 
-# --- Filtros ---
+# --- Filtros rápidos ---
 colf1, colf2, colf3 = st.columns([1,1,1])
 with colf1:
     trips = ["(Todos)"] + (sorted(df["trip_name"].dropna().unique().tolist()) if not df.empty else [])
@@ -192,7 +247,7 @@ if not fdf.empty:
     if status_sel != "(Todos)":
         fdf = fdf[fdf["status"] == status_sel]
 
-# --- Vista calendario (timeline) ---
+# --- Vista timeline ---
 st.subheader("Vista de cronograma (día/semana)")
 if not fdf.empty:
     try:
@@ -206,20 +261,19 @@ if not fdf.empty:
     row_label = st.radio("Agrupar filas por:", ["supplier_name", "trip_name"], horizontal=True, index=0)
     title_hover = ["title","trip_name","supplier_name","category","status","pax","guide_language","location","notes"]
 
-    fig = px.timeline(
+    fig_tl = px.timeline(
         fdf,
         x_start="start_dt", x_end="end_dt",
         y=row_label, color="category",
-        hover_data=title_hover,
-        title=None
+        hover_data=title_hover, title=None
     )
-    fig.update_yaxes(autorange="reversed")
-    fig.update_layout(height=500, margin=dict(t=20, b=20, l=20, r=20))
-    st.plotly_chart(fig, use_container_width=True)
+    fig_tl.update_yaxes(autorange="reversed")
+    fig_tl.update_layout(height=500, margin=dict(t=20, b=20, l=20, r=20))
+    st.plotly_chart(fig_tl, use_container_width=True)
 else:
     st.info("No hay actividades (todavía). Cargá el CSV de ejemplo o creá una nueva.")
 
-# --- Tabla editable / creación rápida ---
+# --- Form de carga/edición ---
 st.subheader("Actividades")
 with st.expander("Agregar / editar actividad"):
     with st.form("activity_form", clear_on_submit=False):
@@ -231,10 +285,10 @@ with st.expander("Agregar / editar actividad"):
             status = st.selectbox("Status", ["confirmado","tentativo","cancelado"], index=0)
         with c2:
             trip_id = st.text_input("Trip ID", placeholder="T001")
-            trip_name = st.text_input("Trip name", placeholder="Family X / Arturo Sánchez")
-            supplier_id = st.text_input("Supplier ID", placeholder="S001")
+            trip_name = st.text_input("Trip name", placeholder="Arturo Sánchez / Matt Wallach")
+            supplier_id = st.text_input("Supplier ID", placeholder="S_ETIEN / S_GABY / S_MOND")
         with c3:
-            supplier_name = st.text_input("Supplier name", placeholder="Sibaria Tours / Mondrian")
+            supplier_name = st.text_input("Supplier name", placeholder="Etien / Gaby / Mondrian Condesa")
             pax = st.number_input("PAX", min_value=0, value=2)
             guide_language = st.text_input("Idioma guía", value="EN")
 
@@ -292,28 +346,55 @@ if not df.empty:
             delete_activity(del_id.strip())
             st.warning(f"Actividad {del_id.strip()} borrada.")
 
-# --- Export Center ---
+# --- Vista mensual por supplier ---
+st.subheader("Calendario mensual por supplier")
+if df.empty:
+    st.info("Cargá actividades para ver el calendario mensual.")
+else:
+    today = datetime.now()
+    colm, coly, cols = st.columns([1,1,2])
+    with colm:
+        month = st.selectbox("Mes", list(range(1,13)), index=today.month-1, format_func=lambda m: cal.month_name[m])
+    with coly:
+        year = st.number_input("Año", min_value=2024, max_value=2030, value=today.year)
+    with cols:
+        sup_options = sorted(df["supplier_name"].dropna().unique().tolist())
+        default_sup = [s for s in ["Mondrian Condesa","Gaby","Etien"] if s in sup_options]
+        sel_sups = st.multiselect("Suppliers", sup_options, default=default_sup)
+
+    fig_month = month_calendar_figure(df, sel_sups, int(year), int(month))
+    st.plotly_chart(fig_month, use_container_width=True)
+
+    # Descarga PNG del mensual
+    try:
+        st.download_button(
+            label="Descargar calendario mensual (PNG)",
+            data=month_calendar_png(fig_month),
+            file_name=f"calendario_{cal.month_name[month]}_{year}.png",
+            mime="image/png",
+            use_container_width=True
+        )
+    except Exception as e:
+        st.info(f"No se pudo generar la imagen (instalá 'kaleido' en requirements). Detalle: {e}")
+
+# --- Export Center por viaje ---
 st.subheader("Exportar viaje")
 exp_trip = st.selectbox(
     "Elegí el viaje para exportar",
     ["(Elegí)"] + (sorted(df["trip_name"].dropna().unique().tolist()) if not df.empty else [])
 )
-
 if exp_trip != "(Elegí)" and not df.empty:
     tdf = df[df["trip_name"] == exp_trip].copy()
     if tdf.empty:
         st.error("Ese viaje no tiene actividades.")
     else:
-        # ICS
-        ics_str = build_ics(exp_trip, tdf)
         st.download_button(
             label=f"Descargar {exp_trip}.ics",
-            data=ics_str,
+            data=build_ics(exp_trip, tdf),
             file_name=f"{exp_trip.replace(' ','_')}.ics",
             mime="text/calendar",
             use_container_width=True
         )
-        # CSV
         st.download_button(
             label=f"Descargar {exp_trip}.csv",
             data=build_csv(tdf),
@@ -321,7 +402,6 @@ if exp_trip != "(Elegí)" and not df.empty:
             mime="text/csv",
             use_container_width=True
         )
-        # XLSX
         st.download_button(
             label=f"Descargar {exp_trip}.xlsx",
             data=build_xlsx(tdf),
@@ -329,7 +409,6 @@ if exp_trip != "(Elegí)" and not df.empty:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
-        # PDF (agenda)
         st.download_button(
             label=f"Descargar {exp_trip}.pdf (Agenda)",
             data=build_pdf_agenda(exp_trip, tdf),
@@ -337,16 +416,13 @@ if exp_trip != "(Elegí)" and not df.empty:
             mime="application/pdf",
             use_container_width=True
         )
-        # PNG (timeline)
         try:
-            png_bytes = build_png_timeline(tdf)
             st.download_button(
                 label=f"Descargar {exp_trip}.png (Cronograma)",
-                data=png_bytes,
+                data=build_png_timeline(tdf),
                 file_name=f"{exp_trip.replace(' ','_')}.png",
                 mime="image/png",
                 use_container_width=True
             )
         except Exception as e:
-            st.info(f"No se pudo generar la imagen del cronograma (instalá 'kaleido' en requirements). Detalle: {e}")
-
+            st.info(f"No se pudo generar la imagen del cronograma (instalá 'kaleido'). Detalle: {e}")
