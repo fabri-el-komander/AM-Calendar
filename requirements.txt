@@ -3,3 +3,6 @@ pandas>=2.2
 plotly>=5.22
 ics>=0.7
 sqlalchemy>=2.0
+xlsxwriter>=3.2
+reportlab>=4.2
+kaleido>=0.2
